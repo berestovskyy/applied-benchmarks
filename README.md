@@ -1,1 +1,1 @@
-# applied-benchmarks
+# Applied Benchmarks
