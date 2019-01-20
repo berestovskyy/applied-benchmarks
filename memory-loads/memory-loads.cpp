@@ -12,9 +12,9 @@ auto constexpr operator"" _B(uint64_t n) { return n; }
 auto constexpr operator"" _KB(uint64_t n) { return n * 1024; }
 auto constexpr operator"" _M(uint64_t n) { return n * 1000 * 1000; }
 
-/** Cache line len: 64 bytes for x86, 128 bytes for ARM */
+/** Cache line size: 64 bytes for x86, 128 bytes for ARM */
 const auto kCachelineSize = 64_B;
-/** Memory page len. Default page len is 4KB. */
+/** Memory page size. Default page size is 4KB. */
 const auto kPageSize = 4_KB;
 
 /**
@@ -262,7 +262,7 @@ void benchmark_list(benchmark::State &state, const size_t memory_size,
  * @param max_elements
  *   Maximum number of elements to place in the memory block.
  * @param num_ops
- *   Maximum number of elements to place and number of operations to perform.
+ *   Number of operations to perform per benchmark.
  * @param stride
  *   Distance in bytes between adjacent array elements.
  * @param start_offset
@@ -311,8 +311,9 @@ static void misaligned_list(benchmark::State &state) {
                                            list_nodes, 1_M, stride, offset,
                                            [](CachelineAlignedListNode *) {});
 
-  state.counters["Stride"] = benchmark::Counter(
-      stride, benchmark::Counter::kDefaults, benchmark::Counter::OneK::kIs1024);
+  // state.counters["Stride"] = benchmark::Counter(
+  //     stride, benchmark::Counter::kDefaults,
+  //     benchmark::Counter::OneK::kIs1024);
 }
 BENCHMARK(misaligned_list)
     ->ArgNames({"size KB", "offset"})
@@ -342,7 +343,7 @@ static void misaligned_array(benchmark::State &state) {
   const auto array_size = operator""_KB(state.range(0));
   const auto offset = operator""_B(state.range(1));
 
-  /* Cachelien aligned array element */
+  /* Cacheline aligned array element */
   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
     volatile uint64_t offset;
   };
@@ -419,7 +420,7 @@ BENCHMARK(cache_associativity_list)
 // static void cache_associativity_array(benchmark::State &state) {
 //   const auto ways = state.range(0);
 
-//   /* Cachelien aligned array element */
+//   /* Cacheline aligned array element */
 //   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
 //     volatile uint64_t offset;
 //   };
@@ -500,7 +501,7 @@ BENCHMARK(hardware_prefetch_list)
 //   const auto array_size = operator""_KB(state.range(0));
 //   const auto stride = operator""_B(state.range(1));
 
-//   /* Cachelien aligned array element */
+//   /* Cacheline aligned array element */
 //   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
 //     volatile uint64_t offset;
 //   };
@@ -556,7 +557,7 @@ BENCHMARK(cache_hierarchy_list)
 static void cache_hierarchy_array(benchmark::State &state) {
   const auto array_size = operator""_KB(state.range(0));
 
-  /* Cachelien aligned array element */
+  /* Cacheline aligned array element */
   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
     volatile uint64_t offset;
   };
@@ -623,7 +624,7 @@ BENCHMARK(tlb_cache_list)
 // static void tlb_cache_array(benchmark::State &state) {
 //   const auto pages = state.range(0);
 
-//   /* Cachelien aligned array element */
+//   /* Cacheline aligned array element */
 //   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
 //     volatile uint64_t offset;
 //   };
@@ -680,7 +681,7 @@ static void cache_conflicts_array(benchmark::State &state) {
   const auto array_size = operator""_KB(state.range(0));
   const auto stride = operator""_B(state.range(1));
 
-  /* Cachelien aligned array element */
+  /* Cacheline aligned array element */
   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
     volatile uint64_t offset;
   };
