@@ -4,6 +4,7 @@
 ##
 
 # List of benchmarks
+SUBDIRS += memory-latency
 SUBDIRS += memory-loads
 
 # Default directories
