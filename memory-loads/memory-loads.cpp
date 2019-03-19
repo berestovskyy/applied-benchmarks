@@ -1,60 +1,61 @@
-/*
- * SPDX-License-Identifier: MIT
- * Copyright (c) 2019 Andriy Berestovskyy <berestovskyy@gmail.com>
- *
- * Applied Benchmarks: Memory Loads
- */
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019 Andriy Berestovskyy <berestovskyy@gmail.com>
+//
+// Applied Benchmarks: Memory Loads
+//
 
 #include <iostream>
 #include "benchmark/benchmark.h"
 
+// User-defined literals
 auto constexpr operator"" _B(uint64_t n) { return n; }
 auto constexpr operator"" _KB(uint64_t n) { return n * 1024; }
 auto constexpr operator"" _M(uint64_t n) { return n * 1000 * 1000; }
 
-/** Cache line size: 64 bytes for x86, 128 bytes for ARM */
+// Cache line size: 64 bytes for x86-64, 128 bytes for A64 ARMs
 const auto kCachelineSize = 64_B;
-/** Memory page size. Default page size is 4KB. */
+// Memory page size. Default page size is 4 KB
 const auto kPageSize = 4_KB;
 
-/**
- * Place list nodes in memory with the specified stride and offset.
- *
- * The function a bit complicated, so here is an example placement:
- * 1. Place the first object at memory[start_offset]
- * 2. Continue placing objects at memory[start_offset + stride]
- * 3. Once the maximum list size is reached,
- *    try to place the next object at memory[start_offset + sizeof(ListNode)]
- * 4. Repeat until there is a room for a new list node.
- *
- * @tparam ListNode
- *   List node type.
- *
- * @param memory
- *   A memory block to place nodes in.
- * @param memory_size
- *   Total memory block size in bytes.
- * @param max_nodes
- *   Maximum number of nodes to place and benchmark in the memory block.
- * @param stride
- *   Distance in bytes between adjacent list nodes.
- * @param start_offset
- *   Initial offset in bytes to place the first list node.
- *
- * @return
- *   Pointer to the list head.
- */
+//
+// Place list nodes in memory with the specified stride and offset.
+//
+// The function a bit complicated, so here is an example placement:
+// 1. Place the first object at memory[start_offset]
+// 2. Continue placing objects at memory[start_offset + stride]
+// 3. Once the maximum list size is reached,
+//    try to place the next object at memory[start_offset + sizeof(ListNode)]
+// 4. Repeat until there is a room for a new list node.
+//
+// @tparam ListNode
+//   List node type.
+//
+// @param memory
+//   A memory block to place nodes in.
+// @param memory_size
+//   Total memory block size in bytes.
+// @param max_nodes
+//   Maximum number of nodes to place and benchmark in the memory block.
+// @param stride
+//   Distance in bytes between adjacent list nodes.
+// @param start_offset
+//   Initial offset in bytes to place the first list node.
+//
+// @return
+//   Pointer to the list head.
+//
 template <class ListNode>
 static auto place_list_nodes(std::byte *memory, const size_t memory_size,
                              size_t max_nodes, const size_t stride,
                              const size_t start_offset) {
-  /* Check if there is enough space for at least one node */
+  // Check if there is enough space for at least one node
   assert(start_offset + sizeof(ListNode) <= memory_size);
-  /* Make sure ListNode size fits into stride */
+  // Make sure ListNode size fits into stride
   assert(sizeof(ListNode) <= stride);
-  /* Check if the start offset is less than stride */
+  // Check if the start offset is less than stride
   assert(start_offset < stride);
-  /* Check if the stride is less than total list size */
+  // Check if the stride is less than total list size
   assert(stride <= memory_size);
   assert(max_nodes > 0);
 
@@ -62,41 +63,41 @@ static auto place_list_nodes(std::byte *memory, const size_t memory_size,
   ListNode *list_head = nullptr;
   ListNode **cur_node_ptr = &list_head;
   while (max_nodes--) {
-    /* Place a new list node at the current offset */
+    // Place a new list node at the current offset
     *cur_node_ptr = reinterpret_cast<ListNode *>(&memory[cur_offset]);
     cur_node_ptr = &(*cur_node_ptr)->next;
-    /* Check bounds */
+    // Check bounds
     if (cur_offset + stride + sizeof(ListNode) <= memory_size) {
       cur_offset += stride;
     } else {
-      /* Getting back to the start of memory block */
+      // Getting back to the start of memory block
       cur_offset %= stride;
       cur_offset += sizeof(ListNode);
-      /* Check if there is a room for another loop */
+      // Check if there is a room for another loop
       if (cur_offset >= start_offset + stride) break;
     }
   }
-  /* Make a cycle */
+  // Make a cycle
   *cur_node_ptr = list_head;
 
   return list_head;
 }
 
-/**
- * Traverse the list and apply an operation on each node.
- *
- * @tparam ListNode
- *   List node type.
- * @tparam Operation
- *   An operation to perform on each list node.
- *
- * @param list_head
- *   Pointer to the list head.
- * @param num_ops
- *   Number of operations to perform.
- * @param op
- *   An operation to perform on each node.
- */
+//
+// Traverse the list and apply an operation on each node.
+//
+// @tparam ListNode
+//   List node type.
+// @tparam Operation
+//   An operation to perform on each list node.
+//
+// @param list_head
+//   Pointer to the list head.
+// @param num_ops
+//   Number of operations to perform.
+// @param op
+//   An operation to perform on each node.
+//
 template <class ListNode, class Operation>
 static auto traverse_list(ListNode *list_head, size_t num_ops, Operation op) {
   auto cur_node = list_head;
@@ -107,34 +108,34 @@ static auto traverse_list(ListNode *list_head, size_t num_ops, Operation op) {
   return cur_node;
 }
 
-/**
- * Place array elements in memory with the specified stride and offset.
- *
- * @tparam ArrayElement
- *   Array element type.
- *
- * @param memory
- *   A memory block to place elements in.
- * @param memory_size
- *   Total memory block size in bytes.
- * @param max_elements
- *   Maximum number of elements to place in the memory block.
- * @param stride
- *   Distance in bytes between adjacent array elements.
- * @param start_offset
- *   Initial offset in bytes to place the first array element.
- */
+//
+// Place array elements in memory with the specified stride and offset.
+//
+// @tparam ArrayElement
+//   Array element type.
+//
+// @param memory
+//   A memory block to place elements in.
+// @param memory_size
+//   Total memory block size in bytes.
+// @param max_elements
+//   Maximum number of elements to place in the memory block.
+// @param stride
+//   Distance in bytes between adjacent array elements.
+// @param start_offset
+//   Initial offset in bytes to place the first array element.
+//
 template <class ArrayElement>
 static void place_array_elements(std::byte *memory, const size_t memory_size,
                                  size_t max_elements, const size_t stride,
                                  const size_t start_offset) {
-  /* Check if there is enough space for at least one element */
+  // Check if there is enough space for at least one element
   assert(start_offset + sizeof(ArrayElement) <= memory_size);
-  /* Make sure ArrayElement size fits into stride */
+  // Make sure ArrayElement size fits into stride
   assert(sizeof(ArrayElement) <= stride);
-  /* Check if the start offset is less than stride */
+  // Check if the start offset is less than stride
   assert(start_offset < stride);
-  /* Check if the stride is less than total list size */
+  // Check if the stride is less than total list size
   assert(stride <= memory_size);
 
   for (size_t stride_offset = start_offset;
@@ -145,7 +146,7 @@ static void place_array_elements(std::byte *memory, const size_t memory_size,
          memory_offset += stride) {
       auto cur_offset = memory_offset;
       if (max_elements-- == 0) return;
-      /* Place an array element at the current offset */
+      // Place an array element at the current offset
       ArrayElement *cur_element =
           reinterpret_cast<ArrayElement *>(&memory[cur_offset]);
       cur_element->offset = cur_offset;
@@ -153,29 +154,29 @@ static void place_array_elements(std::byte *memory, const size_t memory_size,
   }
 }
 
-/**
- * Traverse the array and apply an operation on each element.
- *
- * @tparam ArrayElement
- *   Array element type.
- * @tparam Operation
- *   An operation to perform on each array element.
- *
- * @param memory
- *   A memory block of elements.
- * @param memory_size
- *   Total memory block size in bytes.
- * @param max_elements
- *   Maximum number of elements in the memory block.
- * @param num_ops
- *   Number of operations to perform.
- * @param stride
- *   Distance in bytes between adjacent array elements.
- * @param start_offset
- *   Initial offset in bytes to place the first array element.
- * @param op
- *   An operation to perform on each element.
- */
+//
+// Traverse the array and apply an operation on each element.
+//
+// @tparam ArrayElement
+//   Array element type.
+// @tparam Operation
+//   An operation to perform on each array element.
+//
+// @param memory
+//   A memory block of elements.
+// @param memory_size
+//   Total memory block size in bytes.
+// @param max_elements
+//   Maximum number of elements in the memory block.
+// @param num_ops
+//   Number of operations to perform.
+// @param stride
+//   Distance in bytes between adjacent array elements.
+// @param start_offset
+//   Initial offset in bytes to place the first array element.
+// @param op
+//   An operation to perform on each element.
+//
 template <class ArrayElement, class Operation>
 static auto traverse_array(std::byte *memory, const size_t memory_size,
                            size_t max_elements, size_t num_ops,
@@ -204,35 +205,35 @@ end:
   return sum;
 }
 
-/**
- * Create and benchmark a list of nodes.
- *
- * @tparam ListNode
- *   List node type.
- * @tparam Operation
- *   An operation to perform on each list node.
- *
- * @param state
- *   Benchmark state object.
- * @param memory_size
- *   Total memory block size in bytes.
- * @param max_nodes
- *   Maximum number of nodes to place in the memory block.
- * @param num_ops
- *   Number of operations to perform per benchmark.
- * @param stride
- *   Distance in bytes between adjacent list nodes.
- * @param start_offset
- *   Initial offset in bytes to place the first list node.
- * @param op
- *   An operation to perform on each node.
- */
+//
+// Create and benchmark a list of nodes.
+//
+// @tparam ListNode
+//   List node type.
+// @tparam Operation
+//   An operation to perform on each list node.
+//
+// @param state
+//   Benchmark state object.
+// @param memory_size
+//   Total memory block size in bytes.
+// @param max_nodes
+//   Maximum number of nodes to place in the memory block.
+// @param num_ops
+//   Number of operations to perform per benchmark.
+// @param stride
+//   Distance in bytes between adjacent list nodes.
+// @param start_offset
+//   Initial offset in bytes to place the first list node.
+// @param op
+//   An operation to perform on each node.
+//
 template <class ListNode, class Operation>
 void benchmark_list(benchmark::State &state, const size_t memory_size,
                     const size_t max_nodes, const size_t num_ops,
                     const size_t stride, const size_t start_offset,
                     Operation op) {
-  /* Allocate an aligned chunk of memory */
+  // Allocate an aligned chunk of memory
   auto memory = static_cast<std::byte *>(operator new(
       memory_size, std::align_val_t(kPageSize)));
   assert(reinterpret_cast<uintptr_t>(memory) % kPageSize == 0);
@@ -247,35 +248,35 @@ void benchmark_list(benchmark::State &state, const size_t memory_size,
   operator delete(memory, std::align_val_t(kPageSize));
 }
 
-/**
- * Create and benchmark an array of elements.
- *
- * @tparam ArrayElement
- *   Array element type.
- * @tparam Operation
- *   An operation to perform on each array element.
- *
- * @param state
- *   Benchmark state object.
- * @param memory_size
- *   Total memory block size in bytes.
- * @param max_elements
- *   Maximum number of elements to place in the memory block.
- * @param num_ops
- *   Number of operations to perform per benchmark.
- * @param stride
- *   Distance in bytes between adjacent array elements.
- * @param start_offset
- *   Initial offset in bytes to place the first array element.
- * @param op
- *   An operation to perform on each element.
- */
+//
+// Create and benchmark an array of elements.
+//
+// @tparam ArrayElement
+//   Array element type.
+// @tparam Operation
+//   An operation to perform on each array element.
+//
+// @param state
+//   Benchmark state object.
+// @param memory_size
+//   Total memory block size in bytes.
+// @param max_elements
+//   Maximum number of elements to place in the memory block.
+// @param num_ops
+//   Number of operations to perform per benchmark.
+// @param stride
+//   Distance in bytes between adjacent array elements.
+// @param start_offset
+//   Initial offset in bytes to place the first array element.
+// @param op
+//   An operation to perform on each element.
+//
 template <class ArrayElement, class Operation>
 void benchmark_array(benchmark::State &state, const size_t memory_size,
                      const size_t max_elements, const size_t num_ops,
                      const size_t stride, const size_t start_offset,
                      Operation op) {
-  /* Allocate an aligned chunk of memory */
+  // Allocate an aligned chunk of memory
   auto memory = static_cast<std::byte *>(operator new(
       memory_size, std::align_val_t(kPageSize)));
   assert(reinterpret_cast<uintptr_t>(memory) % kPageSize == 0);
@@ -300,7 +301,7 @@ static void misaligned_list(benchmark::State &state) {
   const auto list_size = operator""_KB(state.range(0));
   const auto offset = operator""_B(state.range(1));
 
-  /* Cacheline aligned singly linked list node */
+  // Cacheline aligned singly linked list node
   struct alignas(kCachelineSize) CachelineAlignedListNode {
     CachelineAlignedListNode *next;
   };
@@ -343,7 +344,7 @@ static void misaligned_array(benchmark::State &state) {
   const auto array_size = operator""_KB(state.range(0));
   const auto offset = operator""_B(state.range(1));
 
-  /* Cacheline aligned array element */
+  // Cacheline aligned array element
   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
     volatile uint64_t offset;
   };
@@ -388,7 +389,7 @@ BENCHMARK(misaligned_array)
 static void cache_associativity_list(benchmark::State &state) {
   const auto ways = state.range(0);
 
-  /* Cacheline aligned singly linked list node */
+  // Cacheline aligned singly linked list node
   struct alignas(kCachelineSize) CachelineAlignedListNode {
     CachelineAlignedListNode *next;
   };
@@ -420,7 +421,7 @@ BENCHMARK(cache_associativity_list)
 // static void cache_associativity_array(benchmark::State &state) {
 //   const auto ways = state.range(0);
 
-//   /* Cacheline aligned array element */
+//   // Cacheline aligned array element
 //   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
 //     volatile uint64_t offset;
 //   };
@@ -438,7 +439,7 @@ static void hardware_prefetch_list(benchmark::State &state) {
   const auto list_size = operator""_KB(state.range(0));
   const auto stride = operator""_B(state.range(1));
 
-  /* Cacheline aligned singly linked list node */
+  // Cacheline aligned singly linked list node
   struct alignas(kCachelineSize) CachelineAlignedListNode {
     CachelineAlignedListNode *next;
   };
@@ -501,7 +502,7 @@ BENCHMARK(hardware_prefetch_list)
 //   const auto array_size = operator""_KB(state.range(0));
 //   const auto stride = operator""_B(state.range(1));
 
-//   /* Cacheline aligned array element */
+//   // Cacheline aligned array element
 //   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
 //     volatile uint64_t offset;
 //   };
@@ -525,7 +526,7 @@ BENCHMARK(hardware_prefetch_list)
 static void cache_hierarchy_list(benchmark::State &state) {
   const auto list_size = operator""_KB(state.range(0));
 
-  /* Cacheline aligned singly linked list node */
+  // Cacheline aligned singly linked list node
   struct alignas(kCachelineSize) CachelineAlignedListNode {
     CachelineAlignedListNode *next;
   };
@@ -557,7 +558,7 @@ BENCHMARK(cache_hierarchy_list)
 static void cache_hierarchy_array(benchmark::State &state) {
   const auto array_size = operator""_KB(state.range(0));
 
-  /* Cacheline aligned array element */
+  // Cacheline aligned array element
   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
     volatile uint64_t offset;
   };
@@ -594,7 +595,7 @@ BENCHMARK(cache_hierarchy_array)
 static void tlb_cache_list(benchmark::State &state) {
   const auto pages = state.range(0);
 
-  /* Cacheline aligned singly linked list node */
+  // Cacheline aligned singly linked list node
   struct alignas(kCachelineSize) CachelineAlignedListNode {
     CachelineAlignedListNode *next;
   };
@@ -624,7 +625,7 @@ BENCHMARK(tlb_cache_list)
 // static void tlb_cache_array(benchmark::State &state) {
 //   const auto pages = state.range(0);
 
-//   /* Cacheline aligned array element */
+//   // Cacheline aligned array element
 //   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
 //     volatile uint64_t offset;
 //   };
@@ -647,7 +648,7 @@ static void cache_conflicts_list(benchmark::State &state) {
   const auto list_size = operator""_KB(state.range(0));
   const auto stride = operator""_B(state.range(1));
 
-  /* Cacheline aligned singly linked list node */
+  // Cacheline aligned singly linked list node
   struct alignas(kCachelineSize) CachelineAlignedListNode {
     CachelineAlignedListNode *next;
   };
@@ -681,7 +682,7 @@ static void cache_conflicts_array(benchmark::State &state) {
   const auto array_size = operator""_KB(state.range(0));
   const auto stride = operator""_B(state.range(1));
 
-  /* Cacheline aligned array element */
+  // Cacheline aligned array element
   struct alignas(kCachelineSize) CachelineAlignedArrayElement {
     volatile uint64_t offset;
   };
