@@ -10,9 +10,9 @@
 #include "benchmark/benchmark.h"
 
 // User-defined literals
-auto constexpr operator"" _B(uint64_t n) { return n; }
-auto constexpr operator"" _KB(uint64_t n) { return n * 1024; }
-auto constexpr operator"" _M(uint64_t n) { return n * 1000 * 1000; }
+auto constexpr operator"" _B(unsigned long long int n) { return n; }
+auto constexpr operator"" _KB(unsigned long long int n) { return n * 1024; }
+auto constexpr operator"" _M(unsigned long long int n) { return n * 1000 * 1000; }
 
 // Cache line size: 64 bytes for x86-64, 128 bytes for A64 ARMs
 const auto kCachelineSize = 64_B;
