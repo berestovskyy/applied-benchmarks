@@ -22,13 +22,13 @@ $(BENCHMARK):
 	&& cd $(BUILDDIR) \
 	&& cmake $(abspath $@) \
 		-DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_GTEST_TESTS=OFF \
-	&& make
+	&& make -j
 .PHONY: $(BENCHMARK)
 
 # Make subdirs
 subdirs: $(SUBDIRS)
 .PHONY: subdirs
-$(SUBDIRS):
+$(SUBDIRS): $(BENCHMARK)
 	@echo "==> $@"
 	$(MAKE) -C $@ BENCHMARK=$(abspath $(BENCHMARK)) \
 		BUILDDIR=$(abspath $(BUILDDIR))
